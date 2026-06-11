@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="vi" data-bs-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plagiarism Detector AI</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+:root {
+  --primary: #2c3e50;
+  --accent: #3498db;
+  --danger: #e74c3c;
+  --warning: #f39c12;
+  --success: #27ae60;
+}
+body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
+.navbar { background: var(--primary) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.navbar-brand { font-weight: 700; letter-spacing: 0.5px; }
+.card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 1rem; }
+.card-header { border-radius: 12px 12px 0 0 !important; font-weight: 600; }
+.upload-zone {
+  border: 2px dashed #ccc;
+  border-radius: 10px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  background: #fafafa;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent);
+  background: #eef5ff;
+}
+.upload-zone.has-file {
+  border-color: var(--success);
+  background: #eafaf1;
+}
+.upload-zone .icon { font-size: 2.5rem; color: #aaa; }
+.upload-zone.has-file .icon { color: var(--success); }
+.upload-zone .file-name { font-weight: 500; margin-top: 0.5rem; }
+.score-gauge {
+  width: 120px; height: 120px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto; font-size: 1.8rem; font-weight: 700;
+  border: 6px solid #eee;
+}
+.score-gauge.low { border-color: var(--success); color: var(--success); }
+.score-gauge.medium { border-color: var(--warning); color: var(--warning); }
+.score-gauge.high { border-color: var(--danger); color: var(--danger); }
+.score-gauge.very-high { border-color: #c0392b; color: #c0392b; }
+.result-section { display: none; }
+.result-section.visible { display: block; }
+.match-highlight-copy { background: #ffcccc; padding: 2px 4px; border-radius: 3px; }
+.match-highlight-para { background: #ffe5cc; padding: 2px 4px; border-radius: 3px; }
+.match-highlight-ck { background: #e8e8e8; color: #888; padding: 2px 4px; border-radius: 3px; }
+.tab-content { padding: 1.5rem 0; }
+.badge-copy { background: #e74c3c; color: #fff; }
+.badge-para { background: #e67e22; color: #fff; }
+.badge-ck { background: #95a5a6; color: #fff; }
+.highlight-pane {
+  max-height: 500px; overflow-y: auto;
+  font-size: 0.875rem; line-height: 1.6;
+  padding: 1rem; border-radius: 8px;
+  background: #fff; border: 1px solid #dee2e6;
+}
+.highlight-pane .sent { padding: 4px 8px; margin: 2px 0; border-radius: 4px; cursor: pointer; }
+.highlight-pane .sent:hover { opacity: 0.8; }
+.highlight-pane .sent.copy { background: #ffcccc; }
+.highlight-pane .sent.para { background: #ffe5cc; }
+.highlight-pane .sent.ck { background: #e8e8e8; color: #888; }
+.highlight-pane .sent.flash { background: #ccffcc !important; transition: background 0.3s; }
+.modal-highlight {
+  max-height: 70vh; overflow-y: auto;
+}
+.library-file { transition: all 0.2s; }
+.library-file:hover { background: #f8f9fa; }
+.stat-card { text-align: center; padding: 1rem; border-radius: 10px; }
+.stat-card .number { font-size: 2rem; font-weight: 700; }
+.stat-card .label { font-size: 0.85rem; color: #6c757d; }
+.spinner-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(255,255,255,0.8); z-index: 9999;
+  display: none; align-items: center; justify-content: center;
+}
+.spinner-overlay.active { display: flex; }
+.tooltip-custom {
+  position: fixed; background: #ffffdd; padding: 6px 10px;
+  border-radius: 6px; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  z-index: 10000; pointer-events: none; display: none;
+}
+@media (max-width: 768px) {
+  .score-gauge { width: 90px; height: 90px; font-size: 1.3rem; }
+}
+</style>
+</head>
+<body>
+
+<div class="spinner-overlay" id="globalSpinner">
+  <div class="text-center">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+    <p class="mt-2 text-muted" id="spinnerText">Đang xử lý...</p>
+  </div>
+</div>
+
+<nav class="navbar navbar-dark">
+  <div class="container">
+    <span class="navbar-brand"><i class="bi bi-shield-check"></i> Plagiarism Detector AI</span>
+    <span class="badge bg-light text-dark" id="navStats">0 files | 0 MB</span>
+  </div>
+</nav>
+
+<div class="container mt-3">
+  <ul class="nav nav-tabs nav-fill" id="mainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="tab-compare-two" data-bs-toggle="tab" data-bs-target="#pane-compare-two" type="button">
+        <i class="bi bi-file-earmark-plus"></i> So sánh 2 File
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-compare-lib" data-bs-toggle="tab" data-bs-target="#pane-compare-lib" type="button">
+        <i class="bi bi-search"></i> So sánh với Kho
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tab-library" data-bs-toggle="tab" data-bs-target="#pane-library" type="button">
+        <i class="bi bi-folder"></i> Quản lý Kho
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="mainTabContent">
+
+    <!-- ==================== TAB 1: COMPARE TWO ==================== -->
+    <div class="tab-pane fade show active" id="pane-compare-two" role="tabpanel">
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">File A <span class="text-muted small">(PDF, DOCX, TXT)</span></div>
+            <div class="card-body">
+              <div class="upload-zone" id="zoneA" onclick="document.getElementById('fileA').click()">
+                <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
+                <p class="text-muted mb-1">Kéo thả hoặc nhấn để chọn file</p>
+                <div class="file-name text-success d-none"></div>
+              </div>
+              <input type="file" id="fileA" accept=".pdf,.docx,.txt" class="d-none">
+              <div class="mt-2">
+                <label class="small text-muted">Hoặc dán nội dung:</label>
+                <textarea class="form-control form-control-sm" id="textA" rows="3" placeholder="Dán văn bản cần kiểm tra..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <div class="card">
+            <div class="card-header">File B <span class="text-muted small">(PDF, DOCX, TXT)</span></div>
+            <div class="card-body">
+              <div class="upload-zone" id="zoneB" onclick="document.getElementById('fileB').click()">
+                <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
+                <p class="text-muted mb-1">Kéo thả hoặc nhấn để chọn file</p>
+                <div class="file-name text-success d-none"></div>
+              </div>
+              <input type="file" id="fileB" accept=".pdf,.docx,.txt" class="d-none">
+              <div class="mt-2">
+                <label class="small text-muted">Hoặc dán nội dung:</label>
+                <textarea class="form-control form-control-sm" id="textB" rows="3" placeholder="Dán văn bản cần so sánh..."></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 align-items-center">
+        <div class="col-auto">
+          <label class="small">Ngôn ngữ:</label>
+          <select class="form-select form-select-sm" id="langTwo">
+            <option value="auto">Tự động</option>
+            <option value="en">Tiếng Anh</option>
+            <option value="vi">Tiếng Việt</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary mt-3" id="btnCompareTwo" onclick="compareTwo()">
+            <i class="bi bi-play-circle"></i> BẮT ĐẦU PHÂN TÍCH
+          </button>
+        </div>
+      </div>
+
+      <div class="progress mt-2 d-none" id="progressTwo" style="height:6px">
+        <div class="progress-bar" role="progressbar" style="width:0%"></div>
+      </div>
+      <p class="small text-muted" id="statusTwo"></p>
+
+      <!-- Result -->
+      <div class="result-section" id="resultTwo">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span>KẾT QUẢ PHÂN TÍCH</span>
+            <div>
+              <button class="btn btn-sm btn-outline-secondary" onclick="toggleDetail()">
+                <i class="bi bi-gear"></i> Chi tiết
+              </button>
+              <button class="btn btn-sm btn-outline-danger" onclick="exportPdfTwo()">
+                <i class="bi bi-file-pdf"></i> PDF
+              </button>
+              <button class="btn btn-sm btn-outline-info" onclick="showHighlight()">
+                <i class="bi bi-highlighter"></i> Highlight
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4 text-center">
+                <div class="score-gauge" id="gaugeTwo">0%</div>
+                <p class="mt-2 mb-0 fw-bold" id="levelTwo">-</p>
+              </div>
+              <div class="col-md-8">
+                <table class="table table-sm table-borderless mb-1">
+                  <tr><td>Sao chép nguyên văn (Shingling)</td><td class="fw-bold text-end" id="s2Val">0%</td></tr>
+                  <tr><td>Trùng từ khóa cốt lõi (TF-IDF)</td><td class="fw-bold text-end" id="s1Val">0%</td></tr>
+                  <tr><td>Tương đồng ngữ nghĩa (BERT)</td><td class="fw-bold text-end" id="s3Val">0%</td></tr>
+                </table>
+                <div id="insightTwo" class="alert alert-info py-2 small mb-0 d-none"></div>
+              </div>
+            </div>
+            <div id="detailTwo" class="d-none mt-3 border-top pt-2">
+              <h6 class="small fw-bold">Thông số thuật toán:</h6>
+              <pre class="small text-muted mb-0" id="detailTextTwo"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 2: COMPARE LIBRARY ==================== -->
+    <div class="tab-pane fade" id="pane-compare-lib" role="tabpanel">
+      <div class="card">
+        <div class="card-header">File cần kiểm tra</div>
+        <div class="card-body">
+          <div class="upload-zone" id="zoneLib" onclick="document.getElementById('fileLib').click()">
+            <div class="icon"><i class="bi bi-file-earmark-text"></i></div>
+            <p class="text-muted mb-1">Kéo thả hoặc nhấn để chọn file</p>
+            <div class="file-name text-success d-none"></div>
+          </div>
+          <input type="file" id="fileLib" accept=".pdf,.docx,.txt" class="d-none">
+          <div class="mt-2">
+            <label class="small text-muted">Hoặc dán nội dung:</label>
+            <textarea class="form-control form-control-sm" id="textLib" rows="3" placeholder="Dán văn bản cần kiểm tra..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 align-items-center">
+        <div class="col-auto">
+          <label class="small">Ngôn ngữ:</label>
+          <select class="form-select form-select-sm" id="langLib">
+            <option value="auto">Tự động</option>
+            <option value="en">Tiếng Anh</option>
+            <option value="vi">Tiếng Việt</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-primary mt-3" id="btnCompareLib" onclick="compareLibrary()">
+            <i class="bi bi-search"></i> BẮT ĐẦU PHÂN TÍCH
+          </button>
+        </div>
+      </div>
+
+      <div class="progress mt-2 d-none" id="progressLib" style="height:6px">
+        <div class="progress-bar" role="progressbar" style="width:0%"></div>
+      </div>
+      <p class="small text-muted" id="statusLib"></p>
+
+      <div class="result-section" id="resultLib">
+        <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <span>KẾT QUẢ SO SÁNH VỚI KHO</span>
+            <button class="btn btn-sm btn-outline-danger" onclick="exportPdfLib()">
+              <i class="bi bi-file-pdf"></i> PDF
+            </button>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-4 text-center">
+                <div class="score-gauge" id="gaugeLib">0%</div>
+                <p class="mt-2 mb-0 fw-bold" id="levelLib">-</p>
+              </div>
+              <div class="col-md-8">
+                <h6 class="fw-bold">📄 TOP NGUỒN TRÙNG</h6>
+                <div id="topSourcesLib" class="small"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== TAB 3: LIBRARY ==================== -->
+    <div class="tab-pane fade" id="pane-library" role="tabpanel">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="stat-card card">
+            <div class="number text-primary" id="libCount">0</div>
+            <div class="label">Tổng số file</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card card">
+            <div class="number text-success" id="libSize">0 MB</div>
+            <div class="label">Dung lượng</div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="stat-card card">
+            <div class="number text-info" id="libEncoded">0</div>
+            <div class="label">Đã encode</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>Quản lý tài liệu</span>
+          <div>
+            <button class="btn btn-sm btn-primary" onclick="document.getElementById('uploadLib').click()">
+              <i class="bi bi-upload"></i> Thêm file
+            </button>
+            <button class="btn btn-sm btn-success" onclick="encodeAll()">
+              <i class="bi bi-database"></i> Encode tất cả
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="deleteSelected()">
+              <i class="bi bi-trash"></i> Xóa chọn
+            </button>
+          </div>
+          <input type="file" id="uploadLib" accept=".pdf,.docx,.txt" multiple class="d-none">
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0" id="libTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:40px"><input type="checkbox" id="selectAllLib" onchange="toggleSelectAll()"></th>
+                  <th>Tên file</th>
+                  <th style="width:100px">Kích thước</th>
+                  <th style="width:120px">Ngôn ngữ</th>
+                  <th style="width:100px">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody id="libTableBody">
+                <tr><td colspan="5" class="text-center text-muted py-4">Đang tải...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- HIGHLIGHT MODAL -->
+<div class="modal fade" id="highlightModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-highlighter"></i> So sánh văn bản — Highlight trùng lặp</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2 d-flex align-items-center gap-3 flex-wrap">
+          <span class="fw-bold small">🎯 Bộ lọc:</span>
+          <div class="btn-group btn-group-sm" role="group" id="filterGroup">
+            <input type="radio" class="btn-check" name="filterHL" id="flAll" checked onchange="applyHighlightFilter('all')">
+            <label class="btn btn-outline-secondary" for="flAll">Tất cả</label>
+            <input type="radio" class="btn-check" name="filterHL" id="flCopy" onchange="applyHighlightFilter('copy')">
+            <label class="btn btn-outline-secondary" for="flCopy" style="border-left-color:#e74c3c">🔴 Copy</label>
+            <input type="radio" class="btn-check" name="filterHL" id="flPara" onchange="applyHighlightFilter('paraphrase')">
+            <label class="btn btn-outline-secondary" for="flPara" style="border-left-color:#e67e22">🟠 Paraphrase</label>
+          </div>
+          <span class="small text-muted" id="hlInfo"></span>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <h6 class="small fw-bold" id="hlTitleA">File A</h6>
+            <div class="highlight-pane" id="hlPaneA"></div>
+          </div>
+          <div class="col-md-6">
+            <h6 class="small fw-bold" id="hlTitleB">File B</h6>
+            <div class="highlight-pane" id="hlPaneB"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip-custom" id="tooltipHL"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ==================== STATE ====================
+const API = window.location.origin;
+let twoResult = null;
+let libResult = null;
+let hlData = null;
+let hlFilter = 'all';
+
+// Upload zones
+['A', 'B', 'Lib'].forEach(suffix => {
+  const zone = document.getElementById('zone' + suffix);
+  const input = document.getElementById('file' + suffix);
+  if (!zone) return;
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      handleFileSelect(suffix);
+    }
+  });
+  if (input) input.addEventListener('change', () => handleFileSelect(suffix));
+});
+
+async function handleFileSelect(suffix) {
+  const input = document.getElementById('file' + suffix);
+  const zone = document.getElementById('zone' + suffix);
+  const nameEl = zone.querySelector('.file-name');
+  const textArea = document.getElementById('text' + suffix);
+  const statusEl = document.getElementById('status' + (suffix === 'A' ? 'Two' : suffix === 'B' ? 'Two' : 'Lib'));
+
+  if (input.files.length === 0) return;
+  const file = input.files[0];
+  nameEl.textContent = file.name;
+  nameEl.classList.remove('d-none');
+  zone.classList.add('has-file');
+  textArea.value = '';
+
+  if (file.name.match(/\.txt$/i)) {
+    // Read .txt files directly on client (instant)
+    const reader = new FileReader();
+    reader.onload = (e) => { textArea.value = e.target.result; };
+    reader.readAsText(file, 'UTF-8');
+  } else if (file.name.match(/\.(pdf|docx)$/i)) {
+    // PDF/DOCX need server-side extraction
+    if (statusEl) statusEl.textContent = 'Đang trích xuất văn bản...';
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const resp = await fetch(`${API}/api/upload`, { method: 'POST', body: formData });
+      const data = await resp.json();
+      textArea.value = data.content;
+      if (statusEl) statusEl.textContent = 'Đã tải: ' + file.name;
+    } catch (e) {
+      console.error(e);
+      if (statusEl) statusEl.textContent = 'Lỗi tải file!';
+    }
+  }
+}
+
+// ==================== MODEL STATUS CHECK ====================
+async function waitForModels() {
+  const status = document.getElementById('statusTwo');
+  status.textContent = 'Đang tải mô hình AI, vui lòng đợi...';
+  for (let i = 0; i < 120; i++) {
+    try {
+      const resp = await fetch(`${API}/api/health`);
+      const data = await resp.json();
+      if (data.models_ready) return true;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
+
+// ==================== COMPARE TWO ====================
+async function compareTwo() {
+  const btn = document.getElementById('btnCompareTwo');
+  const prog = document.getElementById('progressTwo');
+  const bar = prog.querySelector('.progress-bar');
+  const status = document.getElementById('statusTwo');
+
+  btn.disabled = true;
+  prog.classList.remove('d-none');
+  bar.style.width = '0%';
+  status.textContent = 'Đang xử lý...';
+
+  const textA = document.getElementById('textA').value.trim();
+  const textB = document.getElementById('textB').value.trim();
+
+  if (!textA || !textB) {
+    alert('Vui lòng nhập hoặc tải nội dung cho cả 2 file!');
+    btn.disabled = false;
+    prog.classList.add('d-none');
+    return;
+  }
+
+  // Check if models are ready
+  status.textContent = 'Đang kiểm tra mô hình AI...';
+  const ready = await waitForModels();
+  if (!ready) {
+    status.textContent = 'Lỗi: Không thể tải mô hình AI';
+    alert('Mô hình AI không khả dụng, vui lòng thử lại sau.');
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    bar.style.width = '30%';
+    status.textContent = 'Đang phân tích văn bản...';
+    const resp = await fetch(`${API}/api/compare-two`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_a_content: textA,
+        file_b_content: textB,
+        file_a_name: document.getElementById('fileA').files[0]?.name || 'File A',
+        file_b_name: document.getElementById('fileB').files[0]?.name || 'File B',
+        language: document.getElementById('langTwo').value,
+      }),
+    });
+
+    bar.style.width = '70%';
+    twoResult = await resp.json();
+    bar.style.width = '100%';
+    status.textContent = 'Hoàn thành!';
+    displayTwoResult();
+  } catch (e) {
+    status.textContent = 'Lỗi: ' + e.message;
+    alert('Lỗi: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+function displayTwoResult() {
+  const r = twoResult;
+  document.getElementById('resultTwo').classList.add('visible');
+
+  const gauge = document.getElementById('gaugeTwo');
+  const pct = Math.round(r.final_score * 100);
+  gauge.textContent = pct + '%';
+  gauge.className = 'score-gauge';
+  if (pct < 30) gauge.classList.add('low');
+  else if (pct < 50) gauge.classList.add('medium');
+  else if (pct < 80) gauge.classList.add('high');
+  else gauge.classList.add('very-high');
+
+  document.getElementById('levelTwo').textContent = r.level;
+  document.getElementById('s1Val').textContent = (r.score_1 * 100).toFixed(1) + '%';
+  document.getElementById('s2Val').textContent = (r.score_2 * 100).toFixed(1) + '%';
+  document.getElementById('s3Val').textContent = (r.score_3 * 100).toFixed(1) + '%';
+
+  const insight = document.getElementById('insightTwo');
+  insight.classList.add('d-none');
+  if (r.score_2 > 0.80) {
+    insight.textContent = '👉 Phát hiện sao chép nguyên văn đáng kể. Cần đặt dấu ngoặc kép và trích dẫn nguồn.';
+    insight.classList.remove('d-none');
+  } else if (r.score_1 > 0.80 && r.score_3 > 0.80) {
+    insight.textContent = '👉 Đoạn văn có dấu hiệu xào nấu ý tưởng quá sát với nguồn gốc. Hãy diễn đạt lại hoàn toàn.';
+    insight.classList.remove('d-none');
+  } else if (r.score_3 > 0.80) {
+    insight.textContent = '👉 Ý tưởng và cách triển khai gần giống nguồn tham khảo. Cần bổ sung phân tích cá nhân.';
+    insight.classList.remove('d-none');
+  } else if (r.score_1 > 0.80) {
+    insight.textContent = '👉 Có trùng lặp từ khóa chính. Hãy viết lại bằng cấu trúc câu riêng.';
+    insight.classList.remove('d-none');
+  }
+
+  const detailText = document.getElementById('detailTextTwo');
+  detailText.textContent = [
+    `Shingling: ${(r.score_2 * 100).toFixed(1)}%`,
+    `TF-IDF:    ${(r.score_1 * 100).toFixed(1)}%`,
+    `BERT:      ${(r.score_3 * 100).toFixed(1)}%`,
+    `Công thức: ${r.weight_mode}`,
+    `Tổng:      ${pct}%`,
+  ].join('\n');
+}
+
+function toggleDetail() {
+  const el = document.getElementById('detailTwo');
+  el.classList.toggle('d-none');
+}
+
+// ==================== EXPORT PDF TWO ====================
+async function exportPdfTwo() {
+  if (!twoResult) return alert('Chưa có kết quả!');
+  const textA = document.getElementById('textA').value.trim();
+  const textB = document.getElementById('textB').value.trim();
+  const nameA = document.getElementById('fileA').files[0]?.name || 'File A';
+  const nameB = document.getElementById('fileB').files[0]?.name || 'File B';
+
+  toggleSpinner(true, 'Đang xuất PDF...');
+  try {
+    const resp = await fetch(`${API}/api/report/export-two`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_a_content: textA,
+        file_b_content: textB,
+        file_a_name: nameA,
+        file_b_name: nameB,
+        language: document.getElementById('langTwo').value,
+      }),
+    });
+    const data = await resp.json();
+    window.open(`${API}/api/reports/${data.filename}`);
+  } catch (e) { alert('Lỗi: ' + e.message); }
+  toggleSpinner(false);
+}
+
+// ==================== HIGHLIGHT ====================
+async function showHighlight() {
+  if (!twoResult) return alert('Chưa có kết quả!');
+  const textA = document.getElementById('textA').value.trim();
+  const textB = document.getElementById('textB').value.trim();
+  const nameA = document.getElementById('fileA').files[0]?.name || 'File A';
+  const nameB = document.getElementById('fileB').files[0]?.name || 'File B';
+
+  document.getElementById('hlTitleA').textContent = '📄 ' + nameA;
+  document.getElementById('hlTitleB').textContent = '📄 ' + nameB;
+
+  const sentencesA = textA.split(/(?<=[.!?])\s+|\n\s*\n/).map(s => s.trim()).filter(s => s);
+  const sentencesB = textB.split(/(?<=[.!?])\s+|\n\s*\n/).map(s => s.trim()).filter(s => s);
+
+  hlData = { sentencesA, sentencesB, matches: twoResult.matches };
+
+  // Build lookup
+  hlData.lookupA = {};
+  hlData.lookupB = {};
+  twoResult.matches.forEach((m, mid) => {
+    for (let i = m.orig_idx_start; i <= m.orig_idx_end; i++) hlData.lookupA[i] = mid;
+    for (let i = m.susp_idx_start; i <= m.susp_idx_end; i++) hlData.lookupB[i] = mid;
+  });
+
+  const totalSents = twoResult.matches.reduce((s, m) => s + (m.num_sentences || 1), 0);
+  document.getElementById('hlInfo').textContent =
+    `📋 ${twoResult.matches.length} đoạn trùng (gộp từ ${totalSents} câu)`;
+
+  hlFilter = 'all';
+  document.getElementById('flAll').checked = true;
+  renderHighlight();
+  new bootstrap.Modal(document.getElementById('highlightModal')).show();
+}
+
+function renderHighlight() {
+  if (!hlData) return;
+  renderPane('hlPaneA', hlData.sentencesA, hlData.lookupA, hlData.matches, 'orig');
+  renderPane('hlPaneB', hlData.sentencesB, hlData.lookupB, hlData.matches, 'susp');
+}
+
+function renderPane(paneId, sentences, lookup, matches, side) {
+  const pane = document.getElementById(paneId);
+  pane.innerHTML = '';
+  const key = side === 'orig' ? 'orig_text' : 'susp_text';
+
+  sentences.forEach((sent, i) => {
+    const mid = lookup[i];
+    const div = document.createElement('div');
+    div.className = 'sent';
+    div.textContent = sent;
+    div.dataset.idx = i;
+
+    if (mid !== undefined) {
+      const m = matches[mid];
+      if (m.is_common_knowledge) {
+        if (hlFilter === 'all' || hlFilter === 'ck') div.classList.add('ck');
+      } else if (m.type === 'copy') {
+        if (hlFilter === 'all' || hlFilter === 'copy') div.classList.add('copy');
+      } else if (m.type === 'paraphrase') {
+        if (hlFilter === 'all' || hlFilter === 'paraphrase') div.classList.add('para');
+      }
+
+      div.addEventListener('click', () => {
+        const targetPane = paneId === 'hlPaneA' ? 'hlPaneB' : 'hlPaneA';
+        const targetKey = side === 'orig' ? 'susp' : 'orig';
+        const targetIdx = targetKey === 'susp' ? m.susp_idx_start : m.orig_idx_start;
+        scrollToSent(targetPane, targetIdx);
+      });
+
+      div.addEventListener('mouseenter', (e) => showTooltip(e, m));
+      div.addEventListener('mouseleave', hideTooltip);
+    }
+
+    pane.appendChild(div);
+  });
+}
+
+function scrollToSent(paneId, idx) {
+  const pane = document.getElementById(paneId);
+  const sents = pane.querySelectorAll('.sent');
+  sents.forEach(s => s.classList.remove('flash'));
+  for (const s of sents) {
+    if (parseInt(s.dataset.idx) === idx) {
+      s.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      s.classList.add('flash');
+      setTimeout(() => s.classList.remove('flash'), 2000);
+      break;
+    }
+  }
+}
+
+function applyHighlightFilter(val) {
+  hlFilter = val;
+  renderHighlight();
+}
+
+function showTooltip(e, m) {
+  const tip = document.getElementById('tooltipHL');
+  const icon = m.type === 'copy' ? '🔴' : '🟠';
+  let text = `${icon} ${m.type.toUpperCase()} — ${Math.round(m.score * 100)}%`;
+  if (m.is_common_knowledge) text += '\n📘 Kiến thức phổ thông';
+  tip.textContent = text;
+  tip.style.display = 'block';
+  tip.style.left = (e.clientX + 15) + 'px';
+  tip.style.top = (e.clientY + 10) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltipHL').style.display = 'none';
+}
+
+// ==================== COMPARE LIBRARY ====================
+async function compareLibrary() {
+  const btn = document.getElementById('btnCompareLib');
+  const prog = document.getElementById('progressLib');
+  const bar = prog.querySelector('.progress-bar');
+  const status = document.getElementById('statusLib');
+
+  btn.disabled = true;
+  prog.classList.remove('d-none');
+  bar.style.width = '0%';
+  status.textContent = 'Đang phân tích...';
+
+  const text = document.getElementById('textLib').value.trim();
+  if (!text) { alert('Vui lòng nhập nội dung!'); btn.disabled = false; prog.classList.add('d-none'); return; }
+
+  // Check if models are ready
+  status.textContent = 'Đang kiểm tra mô hình AI...';
+  const ready = await waitForModels();
+  if (!ready) {
+    status.textContent = 'Lỗi: Không thể tải mô hình AI';
+    alert('Mô hình AI không khả dụng, vui lòng thử lại sau.');
+    btn.disabled = false;
+    return;
+  }
+
+  try {
+    bar.style.width = '30%';
+    status.textContent = 'Đang so sánh với kho tài liệu...';
+    const resp = await fetch(`${API}/api/compare-library`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_content: text,
+        file_name: document.getElementById('fileLib').files[0]?.name || 'document',
+        language: document.getElementById('langLib').value,
+      }),
+    });
+    bar.style.width = '70%';
+    libResult = await resp.json();
+    bar.style.width = '100%';
+    status.textContent = 'Hoàn thành!';
+
+    document.getElementById('resultLib').classList.add('visible');
+    const gauge = document.getElementById('gaugeLib');
+    const pct = Math.round(libResult.avg_score * 100);
+    gauge.textContent = pct + '%';
+    gauge.className = 'score-gauge';
+    if (pct < 30) gauge.classList.add('low');
+    else if (pct < 50) gauge.classList.add('medium');
+    else if (pct < 80) gauge.classList.add('high');
+    else gauge.classList.add('very-high');
+    document.getElementById('levelLib').textContent = libResult.level;
+
+    const container = document.getElementById('topSourcesLib');
+    container.innerHTML = libResult.top_sources.map((s, i) =>
+      `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+        <span>${i+1}. <strong>${s.filename}</strong></span>
+        <span class="badge ${s.score > 0.5 ? 'bg-danger' : s.score > 0.3 ? 'bg-warning' : 'bg-success'}">
+          ${(s.score * 100).toFixed(1)}%
+        </span>
+      </div>`
+    ).join('');
+    if (!libResult.top_sources.length) container.innerHTML = '<p class="text-muted">Không tìm thấy kết quả.</p>';
+  } catch (e) {
+    status.textContent = 'Lỗi: ' + e.message;
+    alert('Lỗi: ' + e.message);
+  }
+  btn.disabled = false;
+}
+
+async function exportPdfLib() {
+  if (!libResult) return alert('Chưa có kết quả!');
+  const text = document.getElementById('textLib').value.trim();
+  toggleSpinner(true, 'Đang xuất PDF...');
+  try {
+    const resp = await fetch(`${API}/api/report/export-library`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_content: text,
+        file_name: document.getElementById('fileLib').files[0]?.name || 'document',
+        language: document.getElementById('langLib').value,
+      }),
+    });
+    const data = await resp.json();
+    window.open(`${API}/api/reports/${data.filename}`);
+  } catch (e) { alert('Lỗi: ' + e.message); }
+  toggleSpinner(false);
+}
+
+// ==================== LIBRARY MANAGEMENT ====================
+async function refreshLibrary() {
+  try {
+    const [statsResp, filesResp] = await Promise.all([
+      fetch(`${API}/api/stats`).then(r => r.json()),
+      fetch(`${API}/api/library/files`).then(r => r.json()),
+    ]);
+
+    document.getElementById('libCount').textContent = statsResp.total_files;
+    document.getElementById('libSize').textContent = statsResp.total_size_mb.toFixed(2) + ' MB';
+    document.getElementById('navStats').textContent = `${statsResp.total_files} files | ${statsResp.total_size_mb.toFixed(1)} MB`;
+
+    const encoded = filesResp.files.filter(f => f.encoded).length;
+    document.getElementById('libEncoded').textContent = encoded;
+
+    const tbody = document.getElementById('libTableBody');
+    tbody.innerHTML = filesResp.files.map(f =>
+      `<tr class="library-file">
+        <td><input type="checkbox" class="lib-check" value="${f.name}"></td>
+        <td><i class="bi bi-file-earmark-text me-1"></i>${f.name}</td>
+        <td>${f.size_mb.toFixed(2)} MB</td>
+        <td><span class="badge ${f.language === 'vi' ? 'bg-info' : 'bg-secondary'}">${f.language.toUpperCase()}</span></td>
+        <td>${f.encoded ? '<span class="badge bg-success">✅ Encoded</span>' : '<span class="badge bg-warning">⏳ Chờ</span>'}</td>
+      </tr>`
+    ).join('');
+    if (!filesResp.files.length) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Kho trống. Hãy thêm file vào.</td></tr>';
+  } catch (e) { console.error(e); }
+}
+
+document.getElementById('uploadLib')?.addEventListener('change', async function() {
+  if (!this.files.length) return;
+  const formData = new FormData();
+  for (const f of this.files) formData.append('files', f);
+  toggleSpinner(true, 'Đang tải file lên...');
+  await fetch(`${API}/api/library/upload`, { method: 'POST', body: formData });
+  toggleSpinner(false);
+  await refreshLibrary();
+  if (confirm('Đã tải lên! Bắt đầu encode các file mới?')) await encodeAll();
+});
+
+function toggleSelectAll() {
+  const checked = document.getElementById('selectAllLib').checked;
+  document.querySelectorAll('.lib-check').forEach(cb => cb.checked = checked);
+}
+
+async function deleteSelected() {
+  const names = [...document.querySelectorAll('.lib-check:checked')].map(cb => cb.value);
+  if (!names.length) return alert('Chưa chọn file nào!');
+  if (!confirm(`Xóa ${names.length} file đã chọn?`)) return;
+  toggleSpinner(true, 'Đang xóa...');
+  await fetch(`${API}/api/library/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ names }),
+  });
+  toggleSpinner(false);
+  await refreshLibrary();
+}
+
+async function encodeAll() {
+  toggleSpinner(true, 'Đang encode tất cả file...');
+  await fetch(`${API}/api/library/encode-all`, { method: 'POST' });
+  toggleSpinner(false);
+  await refreshLibrary();
+}
+
+// ==================== UTILITIES ====================
+function toggleSpinner(show, text) {
+  const el = document.getElementById('globalSpinner');
+  if (show) {
+    if (text) document.getElementById('spinnerText').textContent = text;
+    el.classList.add('active');
+  } else {
+    el.classList.remove('active');
+  }
+}
+
+// ==================== INIT ====================
+refreshLibrary();
+// Chỉ refresh library khi người dùng mở tab, không poll tự động
+document.getElementById('tab-library')?.addEventListener('shown.bs.tab', refreshLibrary);
+
+// Re-run highlight on modal show
+document.getElementById('highlightModal')?.addEventListener('shown.bs.modal', function() {
+  if (hlData) renderHighlight();
+});
+</script>
+</body>
+</html>
