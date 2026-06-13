@@ -5,7 +5,7 @@ from tkinter import ttk, filedialog, messagebox
 
 from core.extractor import extract_text, detect_language, get_file_size_mb, count_words
 from core.similarity import compute_ensemble_score, classify_plagiarism
-from core.highlighter import find_matching_positions, determine_match_type
+from core.highlighter import find_matching_positions, compute_coverage
 from core.report_generator import generate_pairwise_report
 from gui.highlight_viewer import HighlightViewerWindow
 
@@ -160,6 +160,7 @@ class CompareTwoWindow:
 
             self._update_status(85, "Đang tổng hợp kết quả...")
             level = classify_plagiarism(final_score, s1, s2, s3)
+            coverage_a, coverage_b = compute_coverage(text_a, text_b, matches)
 
             # Xác định chế độ trọng số đã dùng
             if s3 > 0.9 or s1 > 0.9:
@@ -172,6 +173,8 @@ class CompareTwoWindow:
                 "score_1": s1,
                 "score_2": s2,
                 "score_3": s3,
+                "coverage_a": coverage_a,
+                "coverage_b": coverage_b,
                 "level": level,
                 "matches": matches,
                 "file_a": os.path.basename(self.file_a_path),
@@ -193,6 +196,12 @@ class CompareTwoWindow:
 
     def _display_result(self, final_score, s1, s2, s3, level, matches, weight_mode):
         total_suspect_sents = sum(m.get("num_sentences", 1) for m in matches)
+
+        coverage_a, coverage_b = compute_coverage(
+            self.result_data["file_a_text"],
+            self.result_data["file_b_text"],
+            matches,
+        )
 
         # Lý do paraphrase dựa trên chỉ số cao nhất
         reasons = []
@@ -238,6 +247,10 @@ class CompareTwoWindow:
             f"  • Sao chép nguyên văn (Từng chữ):   {s2*100:5.1f}% ({_score_label(s2)})\n"
             f"  • Trùng lặp từ khóa cốt lõi:        {s1*100:5.1f}% ({_score_label(s1)})\n"
             f"  • Tương đồng về ý nghĩa (Ngữ nghĩa): {s3*100:5.1f}% ({_score_label(s3)})\n"
+            f"{'─'*50}\n"
+            f"Coverage (tỷ lệ từ bị trùng — như Turnitin):\n"
+            f"  • File A: {coverage_a*100:.1f}%\n"
+            f"  • File B: {coverage_b*100:.1f}%\n"
             f"{'─'*50}\n"
             f"Thống kê:\n"
             f"  • Số đoạn trùng phát hiện: {len(matches)} đoạn\n"

@@ -1,8 +1,6 @@
-import re
 import tkinter as tk
 from tkinter import ttk
-
-SENTENCE_SPLIT = r'(?<=[.!?])\s+|\n\s*\n'
+from core.highlighter import split_sentences
 
 COLOR_COPY = "#FFCCCC"
 COLOR_PARA = "#FFE5CC"
@@ -12,10 +10,11 @@ COLOR_CK = "#E8E8E8"
 class HighlightViewerWindow:
     def __init__(self, parent, text_a, text_b, matches, name_a, name_b):
         self.matches = matches
-        self.filter_val = "all"  # plain string, updated via Radiobutton callback
+        self.filter_val = "all"
 
-        self.orig_sents = [s.strip() for s in re.split(SENTENCE_SPLIT, text_a) if s.strip()]
-        self.susp_sents = [s.strip() for s in re.split(SENTENCE_SPLIT, text_b) if s.strip()]
+        lang = matches[0].get("language", "vi") if matches else "vi"
+        self.orig_sents = [s.strip() for s in split_sentences(text_a, lang) if s.strip()]
+        self.susp_sents = [s.strip() for s in split_sentences(text_b, lang) if s.strip()]
 
         self._build_lookups()
 
@@ -53,7 +52,7 @@ class HighlightViewerWindow:
 
         n = len(matches)
         total_sents = sum(m.get("num_sentences", 1) for m in matches)
-        ck_count = sum(1 for m in matches if m.get("is_common_knowledge"))
+        ck_count = sum(1 for m in matches if m.get("is_common_knowledge") or m["type"] == "common_knowledge")
         info = f"📋 {n} đoạn trùng (gộp từ {total_sents} câu liền kề)"
         if ck_count:
             info += f"  |  📘 {ck_count} đoạn kiến thức phổ thông"
@@ -120,9 +119,9 @@ class HighlightViewerWindow:
 
         for mid, m in enumerate(self.matches):
             self.match_by_mid[mid] = m
-            for oi in range(m["orig_idx_start"], m["orig_idx_end"] + 1):
+            for oi in m.get("orig_indices", range(m["orig_idx_start"], m["orig_idx_end"] + 1)):
                 self.orig_lookup[oi] = mid
-            for si in range(m["susp_idx_start"], m["susp_idx_end"] + 1):
+            for si in m.get("susp_indices", range(m["susp_idx_start"], m["susp_idx_end"] + 1)):
                 self.susp_lookup[si] = mid
 
     def _render_all(self):
@@ -156,7 +155,7 @@ class HighlightViewerWindow:
 
             if mid is not None:
                 m = self.match_by_mid[mid]
-                is_ck = m.get("is_common_knowledge", False)
+                is_ck = m.get("is_common_knowledge", False) or m["type"] == "common_knowledge"
 
                 if is_ck:
                     if filter_val in ("all", "ck"):
@@ -209,8 +208,8 @@ class HighlightViewerWindow:
             return
 
         m = self.match_by_mid[mid]
-        target_sent = (m["susp_idx_start"] if side == "left"
-                      else m["orig_idx_start"])
+        target_sent = (min(m.get("susp_indices", [m["susp_idx_start"]])) if side == "left"
+                      else min(m.get("orig_indices", [m["orig_idx_start"]])))
 
         if target_sent in target_positions:
             pos = target_positions[target_sent][1]  # start position
@@ -227,7 +226,7 @@ class HighlightViewerWindow:
             m = self.match_by_mid[mid]
             icon = "🔴" if m["type"] == "copy" else "🟠"
             text = f"{icon} {m['type'].upper()} — {m['score']*100:.0f}%"
-            if m.get("is_common_knowledge"):
+            if m.get("is_common_knowledge") or m["type"] == "common_knowledge":
                 text += "\n📘 Kiến thức phổ thông (Common Knowledge)"
             self.tooltip = tk.Toplevel(self.window)
             self.tooltip.wm_overrideredirect(True)

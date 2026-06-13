@@ -10,19 +10,30 @@ from sklearn.metrics.pairwise import cosine_similarity
 MODELS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models")
 
 
+# FIX: VietnameseEmbedder có cache + word-seg cho PhoBERT
 class VietnameseEmbedder:
     def __init__(self, tokenizer, model):
         self.tokenizer = tokenizer
         self.model = model
+        self._cache = {}
 
-    def encode(self, texts, convert_to_numpy=True):
+    def encode(self, texts, convert_to_numpy=True, pre_segmented=False, batch_size=32):
         import torch
         import numpy as np
+        if not pre_segmented:
+            from underthesea import word_tokenize
+            texts = [word_tokenize(t, format="text") for t in texts]
+
+        cache_key = tuple(texts)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
         embeddings = []
         with torch.no_grad():
-            for text in texts:
+            for i in range(0, len(texts), batch_size):
+                batch = texts[i:i+batch_size]
                 inputs = self.tokenizer(
-                    text, return_tensors="pt",
+                    batch, return_tensors="pt",
                     padding=True, truncation=True, max_length=256
                 )
                 outputs = self.model(**inputs)
@@ -30,8 +41,10 @@ class VietnameseEmbedder:
                 attention = inputs["attention_mask"]
                 mask = attention.unsqueeze(-1).float()
                 masked = (hidden * mask).sum(dim=1) / mask.sum(dim=1)
-                embeddings.append(masked.numpy())
-        return np.vstack(embeddings) if convert_to_numpy else embeddings
+                embeddings.append(masked.cpu().numpy() if masked.is_cuda else masked.numpy())
+        result = np.vstack(embeddings) if convert_to_numpy else np.concatenate(embeddings)
+        self._cache[cache_key] = result
+        return result
 
 
 class AppSession:
@@ -55,6 +68,7 @@ class AppSession:
         # --- Stage 1: English models (PAN-PC-11) ---
         self.tfidf_vectorizer_en = None
         self.bert_model_en = None          # fine-tuned multilingual BERT
+        self.cross_encoder_en = None
         self.ensemble_model_en = None
 
         # --- Stage 2: Vietnamese models (ViSP) ---
@@ -63,8 +77,12 @@ class AppSession:
         self.phobert_model_pt = None       # fine-tuned PhoBERT
         self.ensemble_model_vi = None
 
+        # FIX: khởi tạo cross_encoder_en tránh AttributeError
+        self.cross_encoder_en = None
         # Fallback (original models)
         self.bert_model_fallback = None
+        # FIX: cache embedder instance
+        self._vi_embedder = None
         self.models_loaded = False
         self.faiss_managers = {}
         self.document_store = os.path.join(
@@ -192,8 +210,11 @@ class AppSession:
         return self.tfidf_vectorizer_en
 
     def get_semantic_model(self, language):
+        # FIX: cache VI embedder (tránh tạo mới mỗi lần)
         if language == "vi":
-            return VietnameseEmbedder(self.phobert_tokenizer, self.phobert_model_pt)
+            if self._vi_embedder is None:
+                self._vi_embedder = VietnameseEmbedder(self.phobert_tokenizer, self.phobert_model_pt)
+            return self._vi_embedder
         return self.bert_model_en
 
     def get_ensemble_model(self, language):

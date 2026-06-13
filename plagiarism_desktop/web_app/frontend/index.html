@@ -49,11 +49,14 @@ body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
 .score-gauge.medium { border-color: var(--warning); color: var(--warning); }
 .score-gauge.high { border-color: var(--danger); color: var(--danger); }
 .score-gauge.very-high { border-color: #c0392b; color: #c0392b; }
+.gauge-sm { width: 90px; height: 90px; font-size: 1.3rem; }
 .result-section { display: none; }
 .result-section.visible { display: block; }
+.badge-warning-custom { background: #d35400; color: #fff; }
 .match-highlight-copy { background: #ffcccc; padding: 2px 4px; border-radius: 3px; }
 .match-highlight-para { background: #ffe5cc; padding: 2px 4px; border-radius: 3px; }
 .match-highlight-ck { background: #e8e8e8; color: #888; padding: 2px 4px; border-radius: 3px; }
+
 .tab-content { padding: 1.5rem 0; }
 .badge-copy { background: #e74c3c; color: #fff; }
 .badge-para { background: #e67e22; color: #fff; }
@@ -84,6 +87,7 @@ body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
   display: none; align-items: center; justify-content: center;
 }
 .spinner-overlay.active { display: flex; }
+.tech-detail-box { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.8rem; font-family: 'Segoe UI', system-ui, sans-serif; }
 .tooltip-custom {
   position: fixed; background: #ffffdd; padding: 6px 10px;
   border-radius: 6px; font-size: 0.8rem; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
@@ -211,23 +215,44 @@ body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
             </div>
           </div>
           <div class="card-body">
+            <!-- LAYER 1: Overall Similarity Index -->
             <div class="row g-3">
               <div class="col-md-4 text-center">
-                <div class="score-gauge" id="gaugeTwo">0%</div>
-                <p class="mt-2 mb-0 fw-bold" id="levelTwo">-</p>
+                <div class="score-gauge" id="gaugeOverall">0%</div>
+                <p class="mt-2 mb-0 fw-bold" id="verdictOverall">-</p>
+                <small class="text-muted">Similarity Index</small>
               </div>
-              <div class="col-md-8">
-                <table class="table table-sm table-borderless mb-1">
-                  <tr><td>Sao chép nguyên văn (Shingling)</td><td class="fw-bold text-end" id="s2Val">0%</td></tr>
-                  <tr><td>Trùng từ khóa cốt lõi (TF-IDF)</td><td class="fw-bold text-end" id="s1Val">0%</td></tr>
-                  <tr><td>Tương đồng ngữ nghĩa (BERT)</td><td class="fw-bold text-end" id="s3Val">0%</td></tr>
-                </table>
+              <div class="col-md-8" id="insightArea">
                 <div id="insightTwo" class="alert alert-info py-2 small mb-0 d-none"></div>
               </div>
             </div>
-            <div id="detailTwo" class="d-none mt-3 border-top pt-2">
-              <h6 class="small fw-bold">Thông số thuật toán:</h6>
-              <pre class="small text-muted mb-0" id="detailTextTwo"></pre>
+
+            <!-- LAYER 2: Detail Breakdown (collapsible) -->
+            <div id="detailTwo" class="d-none mt-3 border-top pt-3">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <h6 class="fw-bold small">Tương đồng chủ đề <span class="badge" id="badgeTopicTwo">-</span></h6>
+                  <table class="table table-sm table-borderless mb-1 small">
+                    <tr><td>BERT (ngữ nghĩa)</td><td class="text-end fw-bold" id="s3Val">0%</td></tr>
+                    <tr><td>TF-IDF (từ khóa)</td><td class="text-end fw-bold" id="s1Val">0%</td></tr>
+                  </table>
+                </div>
+                <div class="col-md-6">
+                  <h6 class="fw-bold small">Đạo văn câu chữ <span class="badge" id="badgeTextTwo">-</span></h6>
+                  <table class="table table-sm table-borderless mb-1 small">
+                    <tr><td>🔴 Copy</td><td class="text-end fw-bold" id="copyVal">0%</td></tr>
+                    <tr><td>🟠 Paraphrase</td><td class="text-end fw-bold" id="paraVal">0%</td></tr>
+                    <tr><td>Coverage</td><td class="text-end fw-bold" id="covAVal">0%</td></tr>
+                    <tr><td>Shingling</td><td class="text-end fw-bold" id="s2Val">0%</td></tr>
+                  </table>
+                </div>
+              </div>
+              <div class="mt-2 border-top pt-2">
+                <button class="btn btn-sm btn-link text-muted p-0" onclick="toggleTechDetail()">
+                  <i class="bi bi-gear"></i> Thông số thuật toán
+                </button>
+                <div class="tech-detail-box d-none" id="techDetailText"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -276,22 +301,11 @@ body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
       <div class="result-section" id="resultLib">
         <div class="card">
           <div class="card-header d-flex justify-content-between align-items-center">
-            <span>KẾT QUẢ SO SÁNH VỚI KHO</span>
-            <button class="btn btn-sm btn-outline-danger" onclick="exportPdfLib()">
-              <i class="bi bi-file-pdf"></i> PDF
-            </button>
+            <span>KẾT QUẢ TÌM NGUỒN TRÙNG</span>
+            <span class="small text-muted" id="totalLibFiles">0 nguồn</span>
           </div>
-          <div class="card-body">
-            <div class="row g-3">
-              <div class="col-md-4 text-center">
-                <div class="score-gauge" id="gaugeLib">0%</div>
-                <p class="mt-2 mb-0 fw-bold" id="levelLib">-</p>
-              </div>
-              <div class="col-md-8">
-                <h6 class="fw-bold">📄 TOP NGUỒN TRÙNG</h6>
-                <div id="topSourcesLib" class="small"></div>
-              </div>
-            </div>
+          <div class="card-body p-0">
+            <div id="topSourcesLib" class="small"></div>
           </div>
         </div>
       </div>
@@ -369,7 +383,7 @@ body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-2 d-flex align-items-center gap-3 flex-wrap">
+        <div id="hlFilterBar" class="mb-2 d-flex align-items-center gap-3 flex-wrap">
           <span class="fw-bold small">🎯 Bộ lọc:</span>
           <div class="btn-group btn-group-sm" role="group" id="filterGroup">
             <input type="radio" class="btn-check" name="filterHL" id="flAll" checked onchange="applyHighlightFilter('all')">
@@ -378,6 +392,7 @@ body { background: #f0f2f5; font-family: 'Segoe UI', system-ui, sans-serif; }
             <label class="btn btn-outline-secondary" for="flCopy" style="border-left-color:#e74c3c">🔴 Copy</label>
             <input type="radio" class="btn-check" name="filterHL" id="flPara" onchange="applyHighlightFilter('paraphrase')">
             <label class="btn btn-outline-secondary" for="flPara" style="border-left-color:#e67e22">🟠 Paraphrase</label>
+
           </div>
           <span class="small text-muted" id="hlInfo"></span>
         </div>
@@ -453,11 +468,19 @@ async function handleFileSelect(suffix) {
     try {
       const resp = await fetch(`${API}/api/upload`, { method: 'POST', body: formData });
       const data = await resp.json();
+      if (!resp.ok) {
+        if (statusEl) statusEl.textContent = 'Lỗi: ' + (data.detail || 'Không thể trích xuất văn bản');
+        return;
+      }
+      if (!data.content) {
+        if (statusEl) statusEl.textContent = 'Lỗi: ' + (data.error || 'File trống hoặc không đọc được');
+        return;
+      }
       textArea.value = data.content;
       if (statusEl) statusEl.textContent = 'Đã tải: ' + file.name;
     } catch (e) {
-      console.error(e);
-      if (statusEl) statusEl.textContent = 'Lỗi tải file!';
+      console.error('Upload error:', e);
+      if (statusEl) statusEl.textContent = 'Lỗi: không thể xử lý file (thử upload .txt thay vì PDF)';
     }
   }
 }
@@ -536,52 +559,108 @@ async function compareTwo() {
   btn.disabled = false;
 }
 
+function calculateOverallScore(r) {
+  const coverage = r.coverage_a || r.plagiarism_score || 0;
+  const shingling = r.score_2 || 0;
+  return Math.min((coverage * 0.70) + (shingling * 0.30), 1.0);
+}
+
+function getVerdict(overall) {
+  const pct = overall * 100;
+  if (pct >= 30) return { text: '🔴 Đạo văn nghiêm trọng', cls: 'very-high' };
+  if (pct >= 15) return { text: '🟠 Có dấu hiệu đạo văn rõ', cls: 'high' };
+  if (pct >= 5)  return { text: '🟡 Có dấu hiệu cần kiểm tra', cls: 'medium' };
+  return { text: '🔵 Không phát hiện đạo văn', cls: 'low' };
+}
+
 function displayTwoResult() {
   const r = twoResult;
   document.getElementById('resultTwo').classList.add('visible');
 
-  const gauge = document.getElementById('gaugeTwo');
-  const pct = Math.round(r.final_score * 100);
-  gauge.textContent = pct + '%';
-  gauge.className = 'score-gauge';
-  if (pct < 30) gauge.classList.add('low');
-  else if (pct < 50) gauge.classList.add('medium');
-  else if (pct < 80) gauge.classList.add('high');
-  else gauge.classList.add('very-high');
+  const topicSim = Math.round(Math.max(r.score_3, r.score_1) * 100);
+  const coverageVal = r.coverage_a || r.plagiarism_score || 0;
+  const coveragePct = Math.round(coverageVal * 100);
+  const shinglePct = Math.round(r.score_2 * 100);
+  const copyPct = r.copy_score ? (r.copy_score * 100).toFixed(1) : '0.0';
+  const paraPct = r.paraphrase_score ? (r.paraphrase_score * 100).toFixed(1) : '0.0';
 
-  document.getElementById('levelTwo').textContent = r.level;
+  // Layer 1 — Overall score
+  const overall = calculateOverallScore(r);
+  const overallPct = Math.round(overall * 100);
+  const verdict = getVerdict(overall);
+  const gauge = document.getElementById('gaugeOverall');
+  gauge.textContent = overallPct + '%';
+  gauge.className = 'score-gauge';
+  gauge.classList.add(verdict.cls);
+  document.getElementById('verdictOverall').textContent = verdict.text;
+
+  // Insight area
+  const insight = document.getElementById('insightTwo');
+  insight.classList.remove('d-none');
+  if (coveragePct > 0) {
+    insight.className = 'alert alert-warning py-2 small mb-0';
+    insight.innerHTML = `🟡 Có câu bị phát hiện (🔴 Copy ${copyPct}% · 🟠 Paraphrase ${paraPct}%). Kiểm tra tab Highlight.`;
+  } else if (shinglePct >= 15) {
+    insight.className = 'alert alert-warning py-2 small mb-0';
+    insight.textContent = '⚠️ Có cụm từ trùng nhau (Shingling ' + shinglePct + '%) nhưng chưa đủ để xác định câu cụ thể.';
+  } else if (r.score_3 >= 0.90 && coveragePct < 1) {
+    insight.className = 'alert alert-warning py-2 small mb-0';
+    insight.innerHTML = `🔵 Cùng chủ đề — không phát hiện copy/paraphrase câu chữ cụ thể.<br>⚠️ <strong>Lưu ý:</strong> BERT ${(r.score_3 * 100).toFixed(1)}% cho thấy cấu trúc ý tưởng rất tương đồng. Có thể cùng nguồn tham khảo hoặc viết lại toàn bộ từ 1 tài liệu gốc.`;
+  } else if (topicSim >= 50) {
+    insight.className = 'alert alert-info py-2 small mb-0';
+    insight.textContent = '🔵 Cùng chủ đề — không phát hiện copy/paraphrase câu chữ cụ thể. Hai bài viết độc lập, cùng lĩnh vực.';
+  } else {
+    insight.classList.add('d-none');
+  }
+
+  // Layer 2 — Detail scores
+  function setBadge(id, text, cls) {
+    const b = document.getElementById(id);
+    b.textContent = text;
+    b.className = 'badge ' + cls;
+  }
+  if (topicSim >= 90) setBadge('badgeTopicTwo', 'Rất giống chủ đề', 'bg-danger');
+  else if (topicSim >= 70) setBadge('badgeTopicTwo', 'Cùng lĩnh vực', 'badge-warning-custom');
+  else setBadge('badgeTopicTwo', 'Khác chủ đề', 'bg-success');
+
+  if (coveragePct >= 15) setBadge('badgeTextTwo', 'Có đạo văn', 'bg-danger');
+  else if (coveragePct >= 5) setBadge('badgeTextTwo', 'Nghi ngờ đạo văn', 'badge-warning-custom');
+  else if (coveragePct >= 1) setBadge('badgeTextTwo', 'Có câu đáng chú ý', 'badge-warning-custom');
+  else if (shinglePct >= 15) setBadge('badgeTextTwo', 'Có n-gram trùng', 'badge-warning-custom');
+  else setBadge('badgeTextTwo', 'Không đạo văn', 'bg-secondary');
+
   document.getElementById('s1Val').textContent = (r.score_1 * 100).toFixed(1) + '%';
   document.getElementById('s2Val').textContent = (r.score_2 * 100).toFixed(1) + '%';
   document.getElementById('s3Val').textContent = (r.score_3 * 100).toFixed(1) + '%';
+  document.getElementById('covAVal').textContent = (r.coverage_a * 100).toFixed(1) + '%';
+  document.getElementById('copyVal').textContent = copyPct + '%';
+  document.getElementById('paraVal').textContent = paraPct + '%';
 
-  const insight = document.getElementById('insightTwo');
-  insight.classList.add('d-none');
-  if (r.score_2 > 0.80) {
-    insight.textContent = '👉 Phát hiện sao chép nguyên văn đáng kể. Cần đặt dấu ngoặc kép và trích dẫn nguồn.';
-    insight.classList.remove('d-none');
-  } else if (r.score_1 > 0.80 && r.score_3 > 0.80) {
-    insight.textContent = '👉 Đoạn văn có dấu hiệu xào nấu ý tưởng quá sát với nguồn gốc. Hãy diễn đạt lại hoàn toàn.';
-    insight.classList.remove('d-none');
-  } else if (r.score_3 > 0.80) {
-    insight.textContent = '👉 Ý tưởng và cách triển khai gần giống nguồn tham khảo. Cần bổ sung phân tích cá nhân.';
-    insight.classList.remove('d-none');
-  } else if (r.score_1 > 0.80) {
-    insight.textContent = '👉 Có trùng lặp từ khóa chính. Hãy viết lại bằng cấu trúc câu riêng.';
-    insight.classList.remove('d-none');
-  }
-
-  const detailText = document.getElementById('detailTextTwo');
-  detailText.textContent = [
-    `Shingling: ${(r.score_2 * 100).toFixed(1)}%`,
-    `TF-IDF:    ${(r.score_1 * 100).toFixed(1)}%`,
-    `BERT:      ${(r.score_3 * 100).toFixed(1)}%`,
-    `Công thức: ${r.weight_mode}`,
-    `Tổng:      ${pct}%`,
-  ].join('\n');
+  // Algorithm details (hidden by default)
+  const techEl = document.getElementById('techDetailText');
+  const covForFormula = r.coverage_a || 0;
+  const shingleForFormula = r.score_2 || 0;
+  const textEvidence = ((covForFormula * 0.70) + (shingleForFormula * 0.30)) * 100;
+  techEl.innerHTML = [
+    `<div class="small mb-1">Công thức = Coverage×0.70 + Shingling×0.30</div>`,
+    `<div class="d-flex justify-content-between"><span>Coverage (${(covForFormula * 100).toFixed(1)}%) × 0.70</span><span class="text-end">${(covForFormula * 0.70 * 100).toFixed(1)}%</span></div>`,
+    `<div class="d-flex justify-content-between"><span>Shingling (${(shingleForFormula * 100).toFixed(1)}%) × 0.30</span><span class="text-end">${(shingleForFormula * 0.30 * 100).toFixed(1)}%</span></div>`,
+    `<div class="d-flex justify-content-between border-top pt-1 mt-1 fw-bold" style="font-size:1rem"><span>Tổng</span><span>${overallPct}%</span></div>`,
+    `<div class="small text-muted mt-1">Trọng số ensemble: ${r.weight_mode}</div>`,
+  ].join('');
 }
 
 function toggleDetail() {
   const el = document.getElementById('detailTwo');
+  const btn = document.querySelector('#resultTwo .card-header .btn-outline-secondary');
+  el.classList.toggle('d-none');
+  if (btn) btn.innerHTML = el.classList.contains('d-none')
+    ? '<i class="bi bi-gear"></i> Chi tiết'
+    : '<i class="bi bi-gear"></i> Ẩn chi tiết';
+}
+
+function toggleTechDetail() {
+  const el = document.getElementById('techDetailText');
   el.classList.toggle('d-none');
 }
 
@@ -606,9 +685,10 @@ async function exportPdfTwo() {
         language: document.getElementById('langTwo').value,
       }),
     });
+    if (!resp.ok) { const err = await resp.text(); throw new Error(err.substring(0, 200)); }
     const data = await resp.json();
     window.open(`${API}/api/reports/${data.filename}`);
-  } catch (e) { alert('Lỗi: ' + e.message); }
+  } catch (e) { alert('Lỗi xuất PDF: ' + e.message); }
   toggleSpinner(false);
 }
 
@@ -623,8 +703,8 @@ async function showHighlight() {
   document.getElementById('hlTitleA').textContent = '📄 ' + nameA;
   document.getElementById('hlTitleB').textContent = '📄 ' + nameB;
 
-  const sentencesA = textA.split(/(?<=[.!?])\s+|\n\s*\n/).map(s => s.trim()).filter(s => s);
-  const sentencesB = textB.split(/(?<=[.!?])\s+|\n\s*\n/).map(s => s.trim()).filter(s => s);
+  const sentencesA = twoResult.sentences_a;
+  const sentencesB = twoResult.sentences_b;
 
   hlData = { sentencesA, sentencesB, matches: twoResult.matches };
 
@@ -632,13 +712,29 @@ async function showHighlight() {
   hlData.lookupA = {};
   hlData.lookupB = {};
   twoResult.matches.forEach((m, mid) => {
-    for (let i = m.orig_idx_start; i <= m.orig_idx_end; i++) hlData.lookupA[i] = mid;
-    for (let i = m.susp_idx_start; i <= m.susp_idx_end; i++) hlData.lookupB[i] = mid;
+    const indicesA = m.orig_indices || (m.orig_idx !== undefined ? [m.orig_idx] : [m.orig_idx_start]);
+    (indicesA || [0]).forEach(i => {
+      if (i >= 0 && i < sentencesA.length) {
+        if (!hlData.lookupA[i]) hlData.lookupA[i] = [];
+        hlData.lookupA[i].push(mid);
+      }
+    });
+    const indicesB = m.susp_indices || (m.susp_idx !== undefined ? [m.susp_idx] : [m.susp_idx_start]);
+    (indicesB || [0]).forEach(i => {
+      if (i >= 0 && i < sentencesB.length) {
+        if (!hlData.lookupB[i]) hlData.lookupB[i] = [];
+        hlData.lookupB[i].push(mid);
+      }
+    });
   });
 
   const totalSents = twoResult.matches.reduce((s, m) => s + (m.num_sentences || 1), 0);
-  document.getElementById('hlInfo').textContent =
-    `📋 ${twoResult.matches.length} đoạn trùng (gộp từ ${totalSents} câu)`;
+  const copyCount = twoResult.matches.filter(m => m.type === 'copy').length;
+  const paraCount = twoResult.matches.filter(m => m.type === 'paraphrase').length;
+  const ckCount = twoResult.matches.filter(m => m.is_common_knowledge || m.type === 'common_knowledge').length;
+  document.getElementById('hlInfo').innerHTML =
+    `📋 ${twoResult.matches.length} đoạn trùng · 🔴 ${copyCount} Copy · 🟠 ${paraCount} Paraphrase` +
+    (ckCount ? ` · 📘 ${ckCount} CK` : '');
 
   hlFilter = 'all';
   document.getElementById('flAll').checked = true;
@@ -648,6 +744,17 @@ async function showHighlight() {
 
 function renderHighlight() {
   if (!hlData) return;
+  const hasMatches = hlData.matches && hlData.matches.length > 0;
+  const info = document.getElementById('hlInfo');
+  if (!hasMatches) {
+    const topicScore = twoResult && (twoResult.topic_score || Math.max(twoResult.score_3, twoResult.score_1));
+    info.innerHTML = topicScore > 0.50
+      ? '<span class="text-info"><i class="bi bi-info-circle-fill"></i> Cùng chủ đề — không có câu nào copy hoặc paraphrase cụ thể. Highlight trống là đúng.</span>'
+      : '<span class="text-muted"><i class="bi bi-info-circle"></i> Không phát hiện trùng lặp câu chữ.</span>';
+    document.getElementById('hlFilterBar').classList.add('d-none');
+  } else {
+    document.getElementById('hlFilterBar').classList.remove('d-none');
+  }
   renderPane('hlPaneA', hlData.sentencesA, hlData.lookupA, hlData.matches, 'orig');
   renderPane('hlPaneB', hlData.sentencesB, hlData.lookupB, hlData.matches, 'susp');
 }
@@ -655,30 +762,47 @@ function renderHighlight() {
 function renderPane(paneId, sentences, lookup, matches, side) {
   const pane = document.getElementById(paneId);
   pane.innerHTML = '';
+  if (!sentences || sentences.length === 0) {
+    pane.innerHTML = '<div class="text-muted text-center py-4"><i class="bi bi-info-circle"></i> Không có câu để hiển thị.</div>';
+    return;
+  }
   const key = side === 'orig' ? 'orig_text' : 'susp_text';
 
+  function getMatchType(midList) {
+    if (midList.length === 0) return null;
+    const m = matches[midList[0]];
+    if (m.is_common_knowledge) return 'ck';
+    return m.type;
+  }
+
   sentences.forEach((sent, i) => {
-    const mid = lookup[i];
+    const midList = lookup[i] || [];
+    const matchType = getMatchType(midList);
     const div = document.createElement('div');
     div.className = 'sent';
     div.textContent = sent;
     div.dataset.idx = i;
+    div.dataset.matchType = matchType || 'none';
 
-    if (mid !== undefined) {
-      const m = matches[mid];
+    if (hlFilter !== 'all' && matchType !== hlFilter) {
+      div.style.display = 'none';
+    }
+
+    if (midList.length > 0) {
+      const m = matches[midList[0]];
       if (m.is_common_knowledge) {
-        if (hlFilter === 'all' || hlFilter === 'ck') div.classList.add('ck');
+        div.classList.add('ck');
       } else if (m.type === 'copy') {
-        if (hlFilter === 'all' || hlFilter === 'copy') div.classList.add('copy');
+        div.classList.add('copy');
       } else if (m.type === 'paraphrase') {
-        if (hlFilter === 'all' || hlFilter === 'paraphrase') div.classList.add('para');
+        div.classList.add('para');
       }
 
       div.addEventListener('click', () => {
         const targetPane = paneId === 'hlPaneA' ? 'hlPaneB' : 'hlPaneA';
         const targetKey = side === 'orig' ? 'susp' : 'orig';
-        const targetIdx = targetKey === 'susp' ? m.susp_idx_start : m.orig_idx_start;
-        scrollToSent(targetPane, targetIdx);
+        const indices = targetKey === 'susp' ? (m.susp_indices || [m.susp_idx_start]) : (m.orig_indices || [m.orig_idx_start]);
+        scrollToSent(targetPane, indices[0]);
       });
 
       div.addEventListener('mouseenter', (e) => showTooltip(e, m));
@@ -695,6 +819,7 @@ function scrollToSent(paneId, idx) {
   sents.forEach(s => s.classList.remove('flash'));
   for (const s of sents) {
     if (parseInt(s.dataset.idx) === idx) {
+      if (s.style.display === 'none') s.style.display = '';
       s.scrollIntoView({ behavior: 'smooth', block: 'center' });
       s.classList.add('flash');
       setTimeout(() => s.classList.remove('flash'), 2000);
@@ -710,9 +835,10 @@ function applyHighlightFilter(val) {
 
 function showTooltip(e, m) {
   const tip = document.getElementById('tooltipHL');
-  const icon = m.type === 'copy' ? '🔴' : '🟠';
+  const icons = { copy: '🔴', paraphrase: '🟠', common_knowledge: '📘' };
+  const icon = icons[m.type] || '⚪';
   let text = `${icon} ${m.type.toUpperCase()} — ${Math.round(m.score * 100)}%`;
-  if (m.is_common_knowledge) text += '\n📘 Kiến thức phổ thông';
+  if (m.is_common_knowledge) text += ' 📘 Kiến thức phổ thông';
   tip.textContent = text;
   tip.style.display = 'block';
   tip.style.left = (e.clientX + 15) + 'px';
@@ -751,6 +877,8 @@ async function compareLibrary() {
   try {
     bar.style.width = '30%';
     status.textContent = 'Đang so sánh với kho tài liệu...';
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000);
     const resp = await fetch(`${API}/api/compare-library`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -759,38 +887,78 @@ async function compareLibrary() {
         file_name: document.getElementById('fileLib').files[0]?.name || 'document',
         language: document.getElementById('langLib').value,
       }),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     bar.style.width = '70%';
+    status.textContent = 'Đang xử lý kết quả...';
     libResult = await resp.json();
     bar.style.width = '100%';
     status.textContent = 'Hoàn thành!';
 
     document.getElementById('resultLib').classList.add('visible');
-    const gauge = document.getElementById('gaugeLib');
-    const pct = Math.round(libResult.avg_score * 100);
-    gauge.textContent = pct + '%';
-    gauge.className = 'score-gauge';
-    if (pct < 30) gauge.classList.add('low');
-    else if (pct < 50) gauge.classList.add('medium');
-    else if (pct < 80) gauge.classList.add('high');
-    else gauge.classList.add('very-high');
-    document.getElementById('levelLib').textContent = libResult.level;
 
     const container = document.getElementById('topSourcesLib');
-    container.innerHTML = libResult.top_sources.map((s, i) =>
-      `<div class="d-flex justify-content-between align-items-center py-1 border-bottom">
-        <span>${i+1}. <strong>${s.filename}</strong></span>
-        <span class="badge ${s.score > 0.5 ? 'bg-danger' : s.score > 0.3 ? 'bg-warning' : 'bg-success'}">
-          ${(s.score * 100).toFixed(1)}%
-        </span>
-      </div>`
-    ).join('');
-    if (!libResult.top_sources.length) container.innerHTML = '<p class="text-muted">Không tìm thấy kết quả.</p>';
+    const count = libResult.top_sources.length;
+    document.getElementById('totalLibFiles').textContent = (count > 0) ? `${count} nguồn tìm thấy` : '0 nguồn';
+    container.innerHTML = libResult.top_sources.map(s => {
+      const pct = (s.semantic * 100).toFixed(0);
+      return `<div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom library-file">
+        <div>
+          <strong>#${s.rank}</strong>
+          <span class="ms-2">${s.filename}</span>
+          <span class="badge ${s.semantic > 0.7 ? 'bg-danger' : s.semantic > 0.5 ? 'bg-warning' : 'bg-secondary'} ms-2">${pct}%</span>
+        </div>
+        <button class="btn btn-sm btn-outline-primary" onclick="compareDetailFromLib('${s.filename}')">
+          <i class="bi bi-arrow-right-circle"></i> So sánh chi tiết
+        </button>
+      </div>`;
+    }).join('');
+    if (!count) container.innerHTML = '<p class="text-muted text-center py-4">Không tìm thấy nguồn trùng khớp.</p>';
   } catch (e) {
     status.textContent = 'Lỗi: ' + e.message;
     alert('Lỗi: ' + e.message);
   }
   btn.disabled = false;
+}
+
+async function compareDetailFromLib(filename) {
+  const userText = document.getElementById('textLib').value.trim();
+  if (!userText) { alert('Không có nội dung để so sánh!'); return; }
+
+  toggleSpinner(true, 'Đang tải nội dung file nguồn...');
+  try {
+    const resp = await fetch(`${API}/api/library/source-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename }),
+    });
+    if (!resp.ok) { const err = await resp.text(); throw new Error(err.substring(0, 200)); }
+    const data = await resp.json();
+    if (!data.content) { alert('Không thể đọc nội dung file: ' + filename); return; }
+
+    // Chuyển sang tab So sánh 2 File
+    const tabTrigger = new bootstrap.Tab(document.getElementById('tab-compare-two'));
+    tabTrigger.show();
+
+    // Điền nội dung
+    document.getElementById('textA').value = userText;
+    document.getElementById('textB').value = data.content;
+    const zoneA = document.getElementById('zoneA');
+    const zoneB = document.getElementById('zoneB');
+    zoneA.querySelector('.file-name').textContent = document.getElementById('fileLib').files[0]?.name || 'File cần kiểm tra';
+    zoneA.querySelector('.file-name').classList.remove('d-none');
+    zoneA.classList.add('has-file');
+    zoneB.querySelector('.file-name').textContent = filename;
+    zoneB.querySelector('.file-name').classList.remove('d-none');
+    zoneB.classList.add('has-file');
+
+    // Tự động chạy so sánh
+    setTimeout(() => compareTwo(), 300);
+  } catch (e) {
+    alert('Lỗi: ' + e.message);
+  }
+  toggleSpinner(false);
 }
 
 async function exportPdfLib() {
@@ -807,9 +975,10 @@ async function exportPdfLib() {
         language: document.getElementById('langLib').value,
       }),
     });
+    if (!resp.ok) { const err = await resp.text(); throw new Error(err.substring(0, 200)); }
     const data = await resp.json();
     window.open(`${API}/api/reports/${data.filename}`);
-  } catch (e) { alert('Lỗi: ' + e.message); }
+  } catch (e) { alert('Lỗi xuất PDF: ' + e.message); }
   toggleSpinner(false);
 }
 

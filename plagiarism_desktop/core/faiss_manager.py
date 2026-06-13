@@ -67,5 +67,15 @@ class FAISSManager:
         with open(self.meta_path, "wb") as f:
             pickle.dump(self.metadata, f)
 
+    # FIX: reset index — xóa toàn bộ vector và metadata
+    def reset(self):
+        self.index = None
+        self.metadata = []
+        self.dimension = None
+        if os.path.exists(self.index_path):
+            os.remove(self.index_path)
+        if os.path.exists(self.meta_path):
+            os.remove(self.meta_path)
+
     def get_total_count(self):
         return self.index.ntotal if self.index else 0

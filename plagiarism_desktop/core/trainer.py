@@ -124,6 +124,7 @@ def collect_pan_pairs(max_samples=2000, progress_callback=None):
 
 
 def collect_visp_pairs(max_samples=50000):
+    rng = random.Random(42)
     pairs = []
     if not os.path.exists(VISP_TRAIN):
         return pairs
@@ -144,21 +145,29 @@ def collect_visp_pairs(max_samples=50000):
             if max_samples and len(pairs) >= max_samples:
                 break
 
+    # FIX: negative sampling bằng index, tránh ghép cặp dương
     neg_pairs = []
-    pos_samples = len(pairs)
-    texts = [(p["text_a"], p["text_b"]) for p in pairs]
-    random.shuffle(texts)
-    for i in range(min(len(texts), pos_samples)):
-        j = random.randint(0, len(texts) - 1)
-        if j != i:
-            neg_pairs.append({
-                "text_a": texts[i][0],
-                "text_b": texts[(j + 1) % len(texts)][1],
-                "label": 0,
-                "source": "negative",
-            })
+    n = len(pairs)
+    indices_a = list(range(n))
+    indices_b = list(range(n))
+    rng.shuffle(indices_a)
+    rng.shuffle(indices_b)
+    for i in range(n):
+        ia, ib = indices_a[i], indices_b[i]
+        if ia == ib:
+            ib = (ib + 1) % n
+        a = pairs[ia]["text_a"]
+        b = pairs[ib]["text_b"]
+        if a == b:
+            continue
+        neg_pairs.append({
+            "text_a": a,
+            "text_b": b,
+            "label": 0,
+            "source": "negative",
+        })
     pairs.extend(neg_pairs)
-    random.shuffle(pairs)
+    rng.shuffle(pairs)
     return pairs
 
 
@@ -172,19 +181,30 @@ def extract_features(text_a, text_b, language, session):
     return np.array([s1, s2, s3, len_ratio])
 
 
+# FIX: negative sampling bằng index, đảm bảo không ghép cặp trùng
 def generate_negative_pan_pairs(pairs, ratio=0.5):
+    rng = random.Random(42)
     num_neg = int(len(pairs) * ratio)
+    indices_a = list(range(len(pairs)))
+    indices_b = list(range(len(pairs)))
+    rng.shuffle(indices_a)
+    rng.shuffle(indices_b)
     negs = []
-    for i in range(num_neg):
-        p1 = random.choice(pairs)
-        p2 = random.choice(pairs)
-        if p1["text_a"] != p2["text_b"]:
-            negs.append({
-                "text_a": p1["text_a"],
-                "text_b": p2["text_b"],
-                "label": 0,
-                "obfuscation": "negative",
-            })
+    n = len(pairs)
+    for i in range(min(num_neg, n)):
+        ia, ib = indices_a[i], indices_b[i]
+        if ia == ib:
+            ib = (ib + 1) % n
+        a = pairs[ia]["text_a"]
+        b = pairs[ib]["text_b"]
+        if a == b:
+            continue
+        negs.append({
+            "text_a": a,
+            "text_b": b,
+            "label": 0,
+            "obfuscation": "negative",
+        })
     return negs
 
 

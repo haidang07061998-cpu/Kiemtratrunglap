@@ -19,7 +19,12 @@ def extract_text_from_pdf(filepath):
 
 def extract_text_from_docx(filepath):
     doc = docx.Document(filepath)
-    return "\n".join([p.text for p in doc.paragraphs])
+    texts = [p.text for p in doc.paragraphs]
+    for table in doc.tables:
+        for row in table.rows:
+            row_texts = [cell.text for cell in row.cells]
+            texts.append(" | ".join(row_texts))
+    return "\n".join(texts)
 
 
 def extract_text_from_txt(filepath):

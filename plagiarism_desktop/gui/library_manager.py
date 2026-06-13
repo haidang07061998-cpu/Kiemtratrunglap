@@ -208,9 +208,15 @@ class LibraryManagerWindow:
         self._refresh_list()
 
     def _rebuild_indexes(self):
+        from core.extractor import detect_language, extract_text
+        vec_dir = os.path.join(os.path.dirname(DOC_STORE), "vector_store")
         for lang in ["en", "vi"]:
-            faiss_mgr = self.session.get_faiss_manager(lang)
-            vec_dir = os.path.join(os.path.dirname(DOC_STORE), "vector_store")
+            from core.faiss_manager import FAISSManager
+            for ext in [".faiss", ".pkl"]:
+                p = os.path.join(vec_dir, f"{lang}_index{ext}")
+                if os.path.exists(p):
+                    os.remove(p)
+            faiss_mgr = FAISSManager(lang)
             import numpy as np
             for fname in os.listdir(DOC_STORE):
                 if not fname.lower().endswith((".pdf", ".docx", ".txt")):
@@ -219,9 +225,11 @@ class LibraryManagerWindow:
                 npy_path = os.path.join(vec_dir, f"{base}.npy")
                 if not os.path.exists(npy_path):
                     continue
+                fpath = os.path.join(DOC_STORE, fname)
+                file_lang = detect_language(extract_text(fpath))
+                if file_lang != lang:
+                    continue
                 vec = np.load(npy_path)
-                faiss_mgr.add_item(vec, {
-                    "filename": fname,
-                    "path": os.path.join(DOC_STORE, fname),
-                })
+                faiss_mgr.add_item(vec, {"filename": fname, "path": fpath})
             faiss_mgr.save()
+            self.session.faiss_managers[lang] = faiss_mgr

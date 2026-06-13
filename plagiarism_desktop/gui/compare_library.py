@@ -6,6 +6,7 @@ from tkinter import ttk, filedialog, messagebox
 from core.extractor import extract_text, detect_language, chunk_text
 from core.preprocessor import preprocess
 from core.similarity import compute_ensemble_score, classify_plagiarism
+from core.highlighter import find_matching_positions, compute_coverage
 from core.report_generator import generate_library_report
 
 REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "reports")
@@ -130,6 +131,8 @@ class CompareLibraryWindow:
                 fs, s1, s2, s3 = compute_ensemble_score(
                     query_text, src_text, lang, self.session
                 )
+                matches = find_matching_positions(query_text, src_text, lang, self.session)
+                cov_a, cov_b = compute_coverage(query_text, src_text, matches)
                 detailed.append({
                     "filename": meta.get("filename", os.path.basename(src_path)),
                     "path": src_path,
@@ -137,6 +140,8 @@ class CompareLibraryWindow:
                     "s1": s1,
                     "s2": s2,
                     "s3": s3,
+                    "coverage_a": cov_a,
+                    "coverage_b": cov_b,
                     "level": classify_plagiarism(fs, s1, s2, s3),
                 })
                 self._update_status(
@@ -162,8 +167,11 @@ class CompareLibraryWindow:
                      f"Mức đánh giá: {level}\n",
                      "📄 TOP NGUỒN TRÙNG:"]
             for i, src in enumerate(top5, 1):
+                cov_a = src.get("coverage_a", 0)
+                cov_b = src.get("coverage_b", 0)
                 lines.append(
                     f"  {i}. {src['filename']} - {src['score']*100:.1f}% {src['level'][:1]}"
+                    f" (cov A:{cov_a*100:.1f}% B:{cov_b*100:.1f}%)"
                 )
             self._update_result("\n".join(lines), 100)
 
