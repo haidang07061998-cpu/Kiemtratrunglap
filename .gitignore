@@ -26,3 +26,5 @@ visp_train.csv
 visp_test.csv
 ahuja2020_hybrid_plagiarism.pdf
 plagiarism_desktop/pan_training_pairs.csv
+*.log
+*.pid
